@@ -1,0 +1,149 @@
+To expose our **EME-GIR** (CuneiScript) compiler and interpreter to the internet so that modern web applications, mobile apps, or IDE extensions can execute Sumerian code, we need to build a **REST API**.
+
+We will build a clean, production-ready backend API using **FastAPI** (one of Python's fastest web frameworks). This API will expose two endpoints:
+
+1. `POST /v1/interpret` – Accepts raw EME-GIR code, executes it through our custom tree-walking engine, and returns the printed output.
+2. `POST /v1/compile` – Accepts raw EME-GIR code and returns the compiled Python 3 target code.
+
+---
+
+## 1. The Production API Implementation
+
+Save this script as `emegir_api.py`. It integrates our custom tokenizing interpreter directly into an asynchronous web server wrapper.
+
+```python
+import io
+import contextlib
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+# Import the Interpreter and Compiler architectures we built earlier
+# (For a self-contained API example, we wrap their runtime execution below)
+from emegir_interpreter import Interpreter
+from emegir_compiler import EmeGirCompiler
+
+app = FastAPI(
+    title="EME-GIR (CuneiScript) Core Engine API",
+    description="REST API interface to compile and interpret 5,000-year-old coding paradigms.",
+    version="1.0.0"
+)
+
+# --- API Data Models (Schemas) ---
+class CodePayload(BaseModel):
+    source_code: str = Field(
+        ..., 
+        example='{ninda} barley =ba 500;\n{im} log =ba "Harvest recorded";\nlog.ibĝare;'
+    )
+
+class InterpretationResponse(BaseModel):
+    success: bool
+    output: str
+    error_type: str = None
+    message: str = None
+
+class CompilationResponse(BaseModel):
+    success: bool
+    target_code: str
+
+# --- API Endpoints ---
+
+@app.post("/v1/interpret", response_model=InterpretationResponse, tags=["Scribal Execution"])
+async def interpret_cuneiform(payload: CodePayload):
+    """
+    Executes raw EME-GIR code live through the tree-walking interpreter
+    and returns stdout execution metrics.
+    """
+    # Intercept system stdout to capture the `.ibĝare` results
+    output_buffer = io.StringIO()
+    
+    try:
+        engine = Interpreter()
+        
+        with contextlib.redirect_stdout(output_buffer):
+            engine.interpret(payload.source_code)
+            
+        execution_result = output_buffer.getvalue()
+        return InterpretationResponse(success=True, output=execution_result)
+        
+    except SystemExit:
+        # Our interpreter engine calls sys.exit(1) on failure, 
+        # but web APIs must not crash the whole server! We intercept it safely.
+        return InterpretationResponse(
+            success=False, 
+            output="", 
+            error_type="SCRIBAL_ERROR", 
+            message="The runtime pipeline rejected the tablet syntax markers."
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal CuneiScript Engine Malfunction: {str(e)}")
+
+@app.post("/v1/compile", response_model=CompilationResponse, tags=["Transpilation Architecture"])
+async def compile_cuneiform(payload: CodePayload):
+    """
+    Transpiles high-level EME-GIR code down to standard Python executable code blocks.
+    """
+    try:
+        compiler_engine = EmeGirCompiler()
+        compiled_output = compiler_engine.compile(payload.source_code)
+        return CompilationResponse(success=True, target_code=compiled_output)
+    except SystemExit:
+        raise HTTPException(status_code=400, detail="Compilation halted: Scriptorium formatting violations detected.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Compiler crashed: {str(e)}")
+
+```
+
+---
+
+## 2. Launching and Running the Web Server
+
+To run this API backend, make sure you have `fastapi` and `uvicorn` installed, then launch it from your machine terminal:
+
+```bash
+pip install fastapi uvicorn pydantic
+uvicorn emegir_api:app --reload --port 8080
+
+```
+
+Once running, your local engine infrastructure goes live at `http://127.0.0.1:8080`. FastAPI will also automatically generate complete interactive swagger documentation for you at `http://127.0.0.1:8080/docs`.
+
+---
+
+## 3. How to Consume the API (The JSON Wire Protocols)
+
+Now any service on the web can send computing requests to our Sumerian runtime. Here is an example of a client sending a request via standard `cURL`.
+
+### Interacting with the Live Interpreter
+
+**The Request:**
+
+```bash
+curl -X 'POST' \
+  'http://127.0.0.1:8080/v1/interpret' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "source_code": "{ninda} tribute =ba 1000\n{im} message =ba \"Tribute Collected\"\nmessage.ibĝare"
+}'
+
+```
+
+**The JSON Response:**
+
+```json
+{
+  "success": true,
+  "output": "Tribute Collected\n",
+  "error_type": null,
+  "message": null
+}
+
+```
+
+---
+
+## What This Unlocks
+
+By exposing our custom language over a REST API, EME-GIR is no longer trapped inside a local terminal environment. This setup allows you to construct features like:
+
+1. **A Web-based Online Playground:** A frontend interface where users can type code, hit an "Execute" button, and see output render instantly in a web browser.
+2. **A GitHub Action / CI-CD Pipeline:** An automated code validator that tests clay tablet transcripts whenever software engineers merge records into an organization's master branch database.
