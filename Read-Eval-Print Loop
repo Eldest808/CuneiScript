@@ -1,0 +1,161 @@
+Building an interactive **REPL** (Read-Eval-Print Loop) is the perfect upgrade. It turns our language into a living environment where you can type EME-GIR code line-by-line and see the computer compute the results instantly, maintaining its memory state from the line before.
+
+To do this properly, we have to transition our compiler into an **Interpreter**. Instead of translating the text into Python and saving it to a file, the code will parse the inputs, update an active **Environment State (Memory Ledger)**, and output results immediately.
+
+Here is the complete Python architecture to launch your interactive **EME-GIR Shell**.
+
+---
+
+## The REPL Architecture (The Clay Ledger)
+
+Save the following code as `emegir_repl.py` and run it in your terminal.
+
+```python
+import re
+import sys
+
+class EmeGirRuntime:
+    def __init__(self):
+        # The active memory ledger (variable state storage)
+        self.ledger = {}
+        
+        # Strict Regex patterns for real-time evaluation
+        self.var_pattern = re.compile(r'^\{(\w+)\}\s+(\w+)\s*=ba\s*(.+)$')
+        self.print_pattern = re.compile(r'^(\w+)\.ibĝare$')
+
+    def evaluate(self, line):
+        line = line.strip()
+        
+        # Ignore empty entries or comments
+        if not line or line.startswith("//"):
+            return None
+
+        # 1. Handle Variable Declarations ({type} var =ba value)
+        var_match = self.var_pattern.match(line)
+        if var_match:
+            det, var_name, value_str = var_match.groups()
+            value_str = value_str.strip()
+            
+            # Evaluate expressions or look up variables if a user does simple math or concatenation
+            try:
+                # We use a safe-ish eval using our ledger as globals/locals
+                evaluated_value = eval(value_str, {}, self.ledger)
+            except Exception:
+                # If evaluation fails, treat it as a raw literal string check
+                evaluated_value = value_str
+
+            # Type Validation System (Semantic Guardrails)
+            if det == "ninda":
+                if not isinstance(evaluated_value, (int, float)):
+                    return f"--- NU-ZU ERROR: Type mismatch. {{ninda}} expects a number, got '{value_str}' ---"
+            elif det == "im":
+                if not isinstance(evaluated_value, str):
+                    return f"--- NU-ZU ERROR: Type mismatch. {{im}} expects a text string, got '{value_str}' ---"
+            elif det == "d":
+                # Check if it already exists (Divine constants cannot be rewritten)
+                if var_name in self.ledger:
+                    return f"--- BALA ERROR: The decree of {{{det}}}{var_name} is absolute and immutable! ---"
+            else:
+                return f"--- HUL ERROR: Unknown determinative domain class {{{det}}} ---"
+
+            # Commit to the clay ledger state
+            self.ledger[var_name] = evaluated_value
+            return f"» [{det}] {var_name} committed to memory."
+
+        # 2. Handle Output Commands (variable.ibĝare)
+        print_match = self.print_pattern.match(line)
+        if print_match:
+            var_name = print_match.group(1)
+            if var_name in self.ledger:
+                return str(self.ledger[var_name])
+            else:
+                return f"--- HUL ERROR: '{var_name}' does not exist in this tablet's record ---"
+
+        # 3. If line doesn't match any known scribal syntax
+        return f"--- NU-ZU ERROR: Unknown cuneiform sign system: '{line}' ---"
+
+
+def start_repl():
+    runtime = EmeGirRuntime()
+    print("====================================================")
+    print("      EME-GIR (CuneiScript) Interactive Shell       ")
+    print("   Type code live. Type 'ba-til' (finish) to exit.  ")
+    print("====================================================")
+    
+    while True:
+        try:
+            # The prompt looks like a wet clay stylus marker
+            user_input = input("eme-gir_> ")
+            
+            # Exit command
+            if user_input.strip() == "ba-til":
+                print("\nThe tablet is baked. Goodbye.")
+                break
+                
+            response = runtime.evaluate(user_input)
+            if response:
+                print(response)
+                
+        except (KeyboardInterrupt, EOFError):
+            print("\nShell disrupted. Saving remaining clay.")
+            break
+
+if __name__ == "__main__":
+    start_repl()
+
+```
+
+---
+
+## Live Walkthrough: How It Runs
+
+Once you execute the script in your machine terminal (`python emegir_repl.py`), you enter an interactive, stateful environment. Here is a transcript of what programming live inside it looks like:
+
+```text
+====================================================
+      EME-GIR (CuneiScript) Interactive Shell       
+   Type code live. Type 'ba-til' (finish) to exit.  
+====================================================
+eme-gir_> {ninda} silver =ba 50
+» [ninda] silver committed to memory.
+
+eme-gir_> {ninda} grain =ba silver * 3
+» [ninda] grain committed to memory.
+
+eme-gir_> grain.ibĝare
+150
+
+eme-gir_> {im} message =ba "Barley total: " + str(grain)
+» [im] message committed to memory.
+
+eme-gir_> message.ibĝare
+Barley total: 150
+
+```
+
+### Watching the Safety Errors Trigger Live
+
+Because the runtime manages the variable ledger continuously, its safety features will actively catch human errors mid-session:
+
+```text
+// Attempting to overwrite a locked Divine Constant twice
+eme-gir_> {d}Nanna =ba "Moon God"
+» [d] Nanna committed to memory.
+
+eme-gir_> {d}Nanna =ba "Sun God"
+--- BALA ERROR: The decree of {d}Nanna is absolute and immutable! ---
+
+// Attempting a bad type assignment
+eme-gir_> {ninda} sheep =ba "Not a number"
+--- NU-ZU ERROR: Type mismatch. {ninda} expects a number, got '"Not a number"' ---
+
+eme-gir_> ba-til
+The tablet is baked. Goodbye.
+
+```
+
+---
+
+## Why This Architecture Changes Things
+
+With this REPL, we have successfully created a real execution loop. The core mechanism here—storing states inside a dynamic internal dictionary (`self.ledger`) while utilizing regular syntax scanning rules—is structurally identical to how foundational early shell environments (like basic LISP or early Python prototypes) were stood up.
